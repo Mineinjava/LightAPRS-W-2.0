@@ -886,6 +886,8 @@ if (((readBatt() > BattMin) && GpsFirstFix) || ((readBatt() > GpsMinVolt) && !Gp
   }
 }
 
+
+
 void sleepSeconds(int sec) {
   PttOFF;
   Si4463OFF;
@@ -1030,6 +1032,7 @@ void updateTelemetry() {
   telemetry_buff[22] = 'C';
   Si5351ON;//little hack to prevent a BMP180 related issue 
   delay(1);
+
 #if defined(ARDUINO_ARCH_SAMD)
   telemetry_buff[23] = ' '; float tempC = bmp.readTemperature();
 #elif defined(ARDUINO_ARCH_RP2040)
@@ -1130,6 +1133,50 @@ void sendLocation() {
 
   }
 
+}
+
+
+void sendVerticalVelocity(){ // calculate vertical velocity in meters per second
+  #if defined(DEVMODE)
+    SerialUSB.println(F("Vertical velocity sending with comment"));
+  #endif
+
+  #if defined(ARDUINO_ARCH_RP2040)
+    double   a1 = gps.altitude.meters();
+    uint32_t t1 = millis();
+    bool updated = false;
+
+    while(!updated){
+      delay(10);
+      updated = gps.altitude.isUpdated();
+    }
+
+    double   a2 = gps.altitude.meters();
+    uint32_t t2 = millis();
+    double   dt = (t2 - t1) / 1000.0;
+    double   v  = (a2 - a1) / dt; 
+
+    vfo_set_drive_strength(APRS_TX_CLK_NUM, SI5351A_CLK_IDRV_8MA);
+    vfo_turn_on(APRS_TX_CLK_NUM);
+    vfo_set_freq_x16(APRS_TX_CLK_NUM, (GEOFENCE_APRS_frequency << PLL_CALCULATION_PRECISION));
+  #endif
+
+  char VelocityMessage[50];
+  snprintf(VelocityMessage, sizeof(VelocityMessage),
+           "Vertical Velocity: %.01f m/s", v);
+
+  delay(500);
+  APRS_sendStatus(VelocityMessage);
+  delay(10);
+
+  #if defined(ARDUINO_ARCH_RP2040)
+    vfo_turn_off();
+  #endif
+    SerialUSB.print(F("APRS Vertical Velocity sent (Freq: "));
+    SerialUSB.print(GEOFENCE_APRS_frequency);
+    SerialUSB.print(F(") - "));    
+    SerialUSB.println(TxCount);
+    TxCount++;
 }
 
 void sendStatus() {
