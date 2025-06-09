@@ -5,52 +5,15 @@
 #include <stdio.h>
 #include <avr/dtostrf.h>
 #include <ZeroAPRS.h>                       //https://github.com/hakkican/ZeroAPRS
-#if defined(ARDUINO_ARCH_SAMD)
-#include <ZeroSi4463.h>                     //https://github.com/hakkican/ZeroSi4463
-#endif
 #include <TinyGPS++.h>                      //https://github.com/mikalhart/TinyGPSPlus
 #include <GEOFENCE.h>                       // Modified version of https://github.com/TomasTT7/TT7F-Float-Tracker/blob/master/Software/ARM_GEOFENCE.c
 #include <Adafruit_SleepyDog.h>             //https://github.com/adafruit/Adafruit_SleepyDog
-#if defined(ARDUINO_ARCH_SAMD)
-#include <Adafruit_BMP085.h>                //https://github.com/adafruit/Adafruit-BMP085-Library
-#include <si5351.h>                         //https://github.com/etherkit/Si5351Arduino
-#endif
 #include <JTEncode.h>                       //https://github.com/etherkit/JTEncode (JT65/JT9/JT4/FT8/WSPR/FSQ Encoder Library)
 #include <TimeLib.h>                        //https://github.com/PaulStoffregen/Time
-#if defined(ARDUINO_ARCH_SAMD)
-#include <Adafruit_ZeroTimer.h>             //https://github.com/adafruit/Adafruit_ZeroTimer
-#include <MemoryFree.h>;
-#elif defined(ARDUINO_ARCH_RP2040)
 #include <MemoryFree.h>
 #include "hardware/gpio.h"
 #include "hardware/i2c.h"
 #include "hardware/pwm.h"
-#endif
-
-#if defined(ARDUINO_ARCH_SAMD)
-
-#define Si5351Pwr     A3
-#define TCXO_Pwr      A4
-#define BattPin       A5
-#define PTT_PIN       3
-#define GpsPwr        7
-#define Si446x_nIRQ   9
-#define Si446x_SDN    4
-#define Si446x_nSEL   8
-
-//macros
-#define Si5351ON    digitalWrite(Si5351Pwr, HIGH)//NPN
-#define Si5351OFF   digitalWrite(Si5351Pwr, LOW)
-#define GpsON       digitalWrite(GpsPwr, LOW)//PNP
-#define GpsOFF      digitalWrite(GpsPwr, HIGH);
-#define PttON       digitalWrite(PTT_PIN, HIGH)
-#define PttOFF      digitalWrite(PTT_PIN, LOW)
-#define Si4463ON    digitalWrite(Si446x_SDN, LOW)
-#define Si4463OFF   digitalWrite(Si446x_SDN, HIGH)
-#define TcxoON      digitalWrite(TCXO_Pwr, HIGH)
-#define TcxoOFF     digitalWrite(TCXO_Pwr, LOW)
-
-#elif defined(ARDUINO_ARCH_RP2040)
 
 #define SerialUSB   Serial
 
@@ -81,8 +44,6 @@
 #define TcxoON      
 #define TcxoOFF     
 
-#endif
-
 //#define DEVMODE // Development mode. Uncomment to enable for debugging.
 //#define DEVMODE2// Development mode. Uncomment to enable for debugging.
 
@@ -101,19 +62,12 @@ int32_t APRS_Freq_Correction          = -1200;     //Hz. vctcxo frequency correc
 //*****************************************************************************
 
 uint16_t  BeaconWait=50;  //seconds sleep for next beacon (HF or VHF). This is an optimized value, do not change this if possible.
-#if defined(ARDUINO_ARCH_SAMD)
-uint16_t  BattWait=60;    //seconds sleep if super capacitors/batteries are below BattMin (important if power source is solar panel) 
-float     BattMin=3.3;    // min Volts to wake up.
-float     GpsMinVolt=4.5; //min Volts for GPS to wake up. (important if power source is solar panel) 
-float     WsprBattMin=4.0;//min Volts for HF (WSPR) radio module to transmit (TX) ~10 mW
-float     HighVolt=6.0; //GPS is always on if the voltage exceeds this value to protect solar caps from overcharge
-#elif defined(ARDUINO_ARCH_RP2040)
 uint16_t  BattWait=1;    //seconds sleep if super capacitors/batteries are below BattMin (important if power source is solar panel) 
 float     BattMin=0.0;    // min Volts to wake up.
 float     GpsMinVolt=0.0; //min Volts for GPS to wake up. (important if power source is solar panel) 
 float     WsprBattMin=0.0;//min Volts for HF (WSPR) radio module to transmit (TX) ~10 mW
 float     HighVolt=9.9; //GPS is always on if the voltage exceeds this value to protect solar caps from overcharge
-#endif
+
 
 //******************************  HF (WSPR) CONFIG *************************************
 
@@ -217,21 +171,8 @@ int16_t GpsInvalidTime=0; //do not change this
 
 //********************************************************************************
 
-#if defined(ARDUINO_ARCH_SAMD)
-Si5351 si5351(0x60);
-#endif
 TinyGPSPlus gps;
-#if defined(ARDUINO_ARCH_SAMD)
-Adafruit_BMP085 bmp;
-#endif
 JTEncode jtencode;
-#if defined(ARDUINO_ARCH_SAMD)
-Si4463 si4463(Si446x_nIRQ, Si446x_SDN, Si446x_nSEL);
-Adafruit_ZeroTimer zerotimer = Adafruit_ZeroTimer(3);
-#endif
-
-
-#if defined(ARDUINO_ARCH_RP2040)
 
 #define WSPR_TX_CLK_NUM     1
 #define APRS_TX_CLK_NUM     0
@@ -665,30 +606,19 @@ void updateStatusLED(void)
   }
 }
 
-#endif
-
 
 void setup() {
   Watchdog.enable(30000);
   Watchdog.reset();
   // While the energy rises slowly with the solar panel, 
   // using the analog reference low solves the analog measurement errors.
-#if defined(ARDUINO_ARCH_SAMD)
-  analogReference(AR_INTERNAL1V65);
-  pinMode(PTT_PIN, OUTPUT);
-  pinMode(Si5351Pwr, OUTPUT);
-  pinMode(TCXO_Pwr, OUTPUT);
-  pinMode(GpsPwr, OUTPUT);
-  pinMode(BattPin, INPUT);
-  pinMode(Si446x_SDN, OUTPUT);
-#elif defined(ARDUINO_ARCH_RP2040)
-  initStatusLED();
-  setStatusLEDBlinkCount(LED_STATUS_NO_GPS);
-  // pinMode(Si5351Pwr, OUTPUT);
-  pinMode(GpsPwr, OUTPUT);
-  // pinMode(BattPin, INPUT);
-  analogReadResolution(12);
-#endif
+
+initStatusLED();
+setStatusLEDBlinkCount(LED_STATUS_NO_GPS);
+// pinMode(Si5351Pwr, OUTPUT);
+pinMode(GpsPwr, OUTPUT);
+// pinMode(BattPin, INPUT);
+analogReadResolution(12);
   
   GpsOFF;
   Si5351OFF;  
@@ -696,13 +626,11 @@ void setup() {
   Si4463OFF;
   TcxoOFF;
 
-#if defined(ARDUINO_ARCH_SAMD)
-  Serial.begin(9600);//GPS
-#elif defined(ARDUINO_ARCH_RP2040)
   Serial2.setRX(GPS_UART1_RX_PIN);
   Serial2.setTX(GPS_UART1_TX_PIN);
   Serial2.begin(9600);//GPS
-#endif
+  
+
   SerialUSB.begin(115200);
   // Wait up to 5 seconds for serial to be opened, to allow catching
   // startup messages on native USB boards (that do not reset when
@@ -723,14 +651,8 @@ void setup() {
   APRS_useAlternateSymbolTable(alternateSymbolTable);
   APRS_setSymbol(Symbol);
   APRS_setPathSize(pathSize);
-
-#if defined(ARDUINO_ARCH_SAMD)
-  Wire.begin();
-  bmp.begin();
-#elif defined(ARDUINO_ARCH_RP2040)
   Wire.begin(); // somehow this is necessary for Serial2 to work properly
   vfo_init();
-#endif
 
   SerialUSB.println(F(""));
   SerialUSB.print(F("APRS (VHF) CallSign: "));
@@ -748,9 +670,8 @@ void loop() {
   Watchdog.reset();
 
 
-#if defined(ARDUINO_ARCH_RP2040)
-  updateStatusLED();
-#endif
+
+updateStatusLED();
 
 if (((readBatt() > BattMin) && GpsFirstFix) || ((readBatt() > GpsMinVolt) && !GpsFirstFix)) {
 
@@ -769,15 +690,13 @@ if (((readBatt() > BattMin) && GpsFirstFix) || ((readBatt() > GpsMinVolt) && !Gp
 
       if(gps.location.isValid() && gps.location.age()<1000){
         GpsInvalidTime=0;
-        #if defined(ARDUINO_ARCH_RP2040)
         setStatusLEDBlinkCount(LED_STATUS_GPS_FIX);
-        #endif
+        
+
       }else{
         GpsInvalidTime++;
-        #if defined(ARDUINO_ARCH_RP2040)
         if (gps.date.year() != 2000) setStatusLEDBlinkCount(LED_STATUS_GPS_TIME);
         else setStatusLEDBlinkCount(LED_STATUS_NO_GPS);
-        #endif
         if(GpsInvalidTime > GpsResetTime){
           GpsOFF; 
           ublox_high_alt_mode_enabled = false; //gps sleep mode resets high altitude mode.
@@ -815,14 +734,9 @@ if (((readBatt() > BattMin) && GpsFirstFix) || ((readBatt() > GpsMinVolt) && !Gp
 
             //in some countries Airborne APRS is not allowed. (for pico balloon only)
             if (isAirborneAPRSAllowed()) {
-              #if defined(ARDUINO_ARCH_RP2040)
               setStatusLEDBlinkCount(LED_STATUS_TX_APRS);
-              #endif
-              sendLocation();             
-              #if defined(ARDUINO_ARCH_RP2040)
-              setStatusLEDBlinkCount(LED_STATUS_NO_GPS);
-              #endif
-
+              sendLocation();  
+              setStatusLEDBlinkCount(LED_STATUS_NO_GPS);           
             }
             freeMem();
             SerialUSB.flush();
@@ -850,25 +764,20 @@ if (((readBatt() > BattMin) && GpsFirstFix) || ((readBatt() > GpsMinVolt) && !Gp
             while (((minute() % 10 != 4) || (minute() % 10 != 8)) && second() != 0) {
               Watchdog.reset();
               delay(1);
-              #if defined(ARDUINO_ARCH_RP2040)
-              updateStatusLED();
-              #endif
+              updateStatusLED();     
             }
             #if defined(DEVMODE)
             SerialUSB.println(F("Digital HF Mode Sending..."));
             #endif          
-            #if defined(ARDUINO_ARCH_RP2040)
             setStatusLEDBlinkCount(LED_STATUS_TX_WSPR);
-            #endif
+
             encode();
             //HFSent=true;
 
             #if defined(DEVMODE)
             SerialUSB.println(F("Digital HF Mode Sent"));
-            #endif             
-            #if defined(ARDUINO_ARCH_RP2040)
-            setStatusLEDBlinkCount(LED_STATUS_NO_GPS);
-            #endif
+            #endif   
+            setStatusLEDBlinkCount(LED_STATUS_NO_GPS);          
   
           } else {
             sleepSeconds(BeaconWait);
@@ -885,6 +794,8 @@ if (((readBatt() > BattMin) && GpsFirstFix) || ((readBatt() > GpsMinVolt) && !Gp
     sleepSeconds(BattWait);
   }
 }
+
+
 
 void sleepSeconds(int sec) {
   PttOFF;
@@ -907,14 +818,10 @@ void sleepSeconds(int sec) {
      
     
     Watchdog.reset();
-#if defined(ARDUINO_ARCH_SAMD)
-    delay(1000);
-#elif defined(ARDUINO_ARCH_RP2040)
     uint32_t usec = time_us_32();
     while ((time_us_32() - usec) < 1000000) {
       updateStatusLED();
     }
-#endif
     
   }
   Watchdog.reset();
@@ -1030,18 +937,12 @@ void updateTelemetry() {
   telemetry_buff[22] = 'C';
   Si5351ON;//little hack to prevent a BMP180 related issue 
   delay(1);
-#if defined(ARDUINO_ARCH_SAMD)
-  telemetry_buff[23] = ' '; float tempC = bmp.readTemperature();
-#elif defined(ARDUINO_ARCH_RP2040)
+
   telemetry_buff[23] = ' '; float tempC = 0.f;
-#endif
   dtostrf(tempC, 6, 2, telemetry_buff + 24);
   telemetry_buff[30] = 'C';
-#if defined(ARDUINO_ARCH_SAMD)
-  telemetry_buff[31] = ' '; float pressure = bmp.readPressure() / 100.0; //Pa to hPa
-#elif defined(ARDUINO_ARCH_RP2040)
   telemetry_buff[31] = ' '; float pressure = 0.f; //Pa to hPa
-#endif
+  
   dtostrf(pressure, 7, 2, telemetry_buff + 32);
   Si5351OFF; 
   telemetry_buff[39] = 'h';
@@ -1056,10 +957,8 @@ void updateTelemetry() {
   telemetry_buff[53] = ' ';
 
   sprintf(telemetry_buff + 54, "%s", comment);   
-#if defined(ARDUINO_ARCH_RP2040)
   // remove temperature and pressure info
   memmove(&telemetry_buff[24], &telemetry_buff[43], (sizeof(telemetry_buff) - 43));
-#endif
 
   // APRS PRECISION AND DATUM OPTION http://www.aprs.org/aprs12/datum.txt ; this extension should be added at end of beacon message.
   // We only send this detailed info if it's likely we're interested in, i.e. searching for landing position
@@ -1083,45 +982,15 @@ void sendLocation() {
   SerialUSB.println(F("Location sending with comment"));
 #endif
 
-#if defined(ARDUINO_ARCH_SAMD)
-  TcxoON;
-  delay(10);
-  Si4463ON;
-  delay(20);            // wait for si4463 stable
-  if (!si4463.init())
-  {
-    #if defined(DEVMODE)
-    SerialUSB.println("Si4463 init fail!");  
-    #endif  
-    Si4463OFF;
-    TcxoOFF;
-
-  } else {
-    #if defined(DEVMODE)
-    SerialUSB.println("Si4463 Init OK");
-    #endif  
-    si4463.setFrequency(GEOFENCE_APRS_frequency+ APRS_Freq_Correction);
-    si4463.setModemOOK();
-    si4463.enterTxMode();
-    analogWrite(A0, 128);
-    PttON;
-#elif defined(ARDUINO_ARCH_RP2040)
   vfo_set_drive_strength(APRS_TX_CLK_NUM, SI5351A_CLK_IDRV_8MA);
   vfo_turn_on(APRS_TX_CLK_NUM);
   vfo_set_freq_x16(APRS_TX_CLK_NUM, (GEOFENCE_APRS_frequency << PLL_CALCULATION_PRECISION));
   {
-#endif
+
     delay(500);
     APRS_sendLoc(telemetry_buff);
     delay(10);
-#if defined(ARDUINO_ARCH_SAMD)
-    PttOFF;
-    si4463.enterStandbyMode();
-    Si4463OFF;
-    TcxoOFF;
-#elif defined(ARDUINO_ARCH_RP2040)
     vfo_turn_off();
-#endif
     SerialUSB.print(F("APRS Location sent (Freq: "));
     SerialUSB.print(GEOFENCE_APRS_frequency);
     SerialUSB.print(F(") - "));    
@@ -1132,46 +1001,54 @@ void sendLocation() {
 
 }
 
-void sendStatus() {
-#if defined(ARDUINO_ARCH_SAMD)
-  TcxoON;
-  delay(10);
-  Si4463ON;
-  delay(20);            // wait for si4463 stable
-  if (!si4463.init())
-  {
-    #if defined(DEVMODE)
-    SerialUSB.println("Si4463 init fail!");  
-    #endif  
-    Si4463OFF;
-    TcxoOFF;
 
-  } else {
-    #if defined(DEVMODE)
-    SerialUSB.println("Si4463 Init OK");
-    #endif  
-    si4463.setFrequency(GEOFENCE_APRS_frequency+ APRS_Freq_Correction);
-    si4463.setModemOOK();
-    si4463.enterTxMode();
-    analogWrite(A0, 128);
-    PttON;
-#elif defined(ARDUINO_ARCH_RP2040)
+void sendVerticalVelocity(){ // calculate vertical velocity in meters per second
+  #if defined(DEVMODE)
+    SerialUSB.println(F("Vertical velocity sending with comment"));
+  #endif
+double   a1 = gps.altitude.meters();
+    uint32_t t1 = millis();
+    bool updated = false;
+
+    while(!updated){
+      delay(10);
+      updated = gps.altitude.isUpdated();
+    }
+
+    double   a2 = gps.altitude.meters();
+    uint32_t t2 = millis();
+    double   dt = (t2 - t1) / 1000.0;
+    double   v  = (a2 - a1) / dt; 
+
+    vfo_set_drive_strength(APRS_TX_CLK_NUM, SI5351A_CLK_IDRV_8MA);
+    vfo_turn_on(APRS_TX_CLK_NUM);
+    vfo_set_freq_x16(APRS_TX_CLK_NUM, (GEOFENCE_APRS_frequency << PLL_CALCULATION_PRECISION));
+
+  char VelocityMessage[50];
+  snprintf(VelocityMessage, sizeof(VelocityMessage),
+           "Vertical Velocity: %.01f m/s", v);
+
+  delay(500);
+  APRS_sendStatus(VelocityMessage);
+  delay(10);
+  vfo_turn_off();
+
+    SerialUSB.print(F("APRS Vertical Velocity sent (Freq: "));
+    SerialUSB.print(GEOFENCE_APRS_frequency);
+    SerialUSB.print(F(") - "));    
+    SerialUSB.println(TxCount);
+    TxCount++;
+}
+
+void sendStatus() {
   vfo_set_drive_strength(APRS_TX_CLK_NUM, SI5351A_CLK_IDRV_8MA);
   vfo_turn_on(APRS_TX_CLK_NUM);
   vfo_set_freq_x16(APRS_TX_CLK_NUM, (GEOFENCE_APRS_frequency << PLL_CALCULATION_PRECISION));
   {
-#endif
     delay(500);
     APRS_sendStatus(StatusMessage);
     delay(10);
-#if defined(ARDUINO_ARCH_SAMD)
-    PttOFF;
-    si4463.enterStandbyMode();
-    Si4463OFF;
-    TcxoOFF;
-#elif defined(ARDUINO_ARCH_RP2040)
     vfo_turn_off();
-#endif
     SerialUSB.print(F("Status sent (Freq: "));
     SerialUSB.print(GEOFENCE_APRS_frequency);
     SerialUSB.print(F(") - "));
@@ -1185,39 +1062,21 @@ static void updateGpsData(int ms)
 {
   Watchdog.reset();
   GpsON;
-#if defined(ARDUINO_ARCH_SAMD)
-  while (!Serial) {delay(1);} // wait for serial port to connect.  
-  if(!ublox_high_alt_mode_enabled){
-    //enable ublox high altitude mode
-    setGPS_DynamicModel6();
-    #if defined(DEVMODE)
-      SerialUSB.println(F("ublox DynamicModel6 enabled..."));
-    #endif      
-    ublox_high_alt_mode_enabled = true;      
-  }
-#endif
   
   unsigned long start = millis();
   unsigned long bekle=0;
   do
   {
-#if defined(ARDUINO_ARCH_SAMD)
-    while (Serial.available()>0) {
-      char c;
-      c=Serial.read();
-#elif defined(ARDUINO_ARCH_RP2040)
     while (Serial2.available()>0) {
       char c;
       c=Serial2.read();
-#endif
       gps.encode(c);
       bekle= millis();
     }
     
     if (bekle!=0 && bekle+10<millis())break;
-#if defined(ARDUINO_ARCH_RP2040)
     updateStatusLED();
-#endif
+
   } while (millis() - start < ms);
 
   #if defined(DEVMODE2)
@@ -1254,19 +1113,11 @@ void setGPS_DynamicModel6()
 }
 
 void sendUBX(uint8_t *MSG, uint8_t len) {
-#if defined(ARDUINO_ARCH_SAMD)
-  Serial.write(0xFF);
-  delay(500);
-  for(int i=0; i<len; i++) {
-    Serial.write(MSG[i]);
-  }
-#elif defined(ARDUINO_ARCH_RP2040)
   Serial2.write(0xFF);
   delay(500);
   for(int i=0; i<len; i++) {
     Serial2.write(MSG[i]);
   }
-#endif
 }
 
 boolean getUBX_ACK(uint8_t *MSG) {
@@ -1309,13 +1160,9 @@ boolean getUBX_ACK(uint8_t *MSG) {
     }
 
     // Make sure data is available to read
-#if defined(ARDUINO_ARCH_SAMD)
-    if (Serial.available()) {
-      b = Serial.read();
-#elif defined(ARDUINO_ARCH_RP2040)
     if (Serial2.available()) {
       b = Serial2.read();
-#endif
+
 
       // Check that bytes arrive in sequence as per expected ACK packet
       if (b == ackPacket[ackByteID]) {
@@ -1431,21 +1278,6 @@ static void printStr(const char *str, int len)
 
 
 float readBatt() {
-#if defined(ARDUINO_ARCH_SAMD)
-  float R1 = 560000.0; // 560K
-  float R2 = 100000.0; // 100K
-  float value = 0.0f;
-
-  do {    
-    value =analogRead(BattPin);
-    value +=analogRead(BattPin);
-    value +=analogRead(BattPin);
-    value = value / 3.0f;
-    value = (value * 1.69) / 1024.0f;
-    value = value / (R2/(R1+R2));
-  } while (value > 20.0);
-  return value ;
-#elif defined(ARDUINO_ARCH_RP2040)
   int adc_val = 0;
   adc_val = analogRead(BattPin);
   adc_val += analogRead(BattPin);
@@ -1454,19 +1286,9 @@ float readBatt() {
   // if (solar_voltage < 0.0f) solar_voltage = 0.0f;
   // if (solar_voltage > 9.9f) solar_voltage = 9.9f;
   return solar_voltage;
-#endif
+
 }
 
-#if defined(ARDUINO_ARCH_SAMD)
-void TC3_Handler() {
-  Adafruit_ZeroTimer::timerHandler(3);
-}
-
-void TimerCallback0(void)
-{
- proceed = true;
-}
-#elif defined(ARDUINO_ARCH_RP2040)
 
 #define WSPR_PWM_SLICE_NUM  4
 
@@ -1480,62 +1302,8 @@ void PWM4_Handler(void) {
     proceed = true;
   }
 }
-#endif
-
 
 void zeroTimerSetPeriodMs(float ms){
-#if defined(ARDUINO_ARCH_SAMD)
-
-  float freq = 1000/ms; 
-
-  uint16_t divider  = 1;
-  uint16_t compare = 0;
-  tc_clock_prescaler prescaler = TC_CLOCK_PRESCALER_DIV1;
-
-  if ((freq < 24000000) && (freq > 800)) {
-    divider = 1;
-    prescaler = TC_CLOCK_PRESCALER_DIV1;
-    compare = 48000000/freq;
-  } else if (freq > 400) {
-    divider = 2;
-    prescaler = TC_CLOCK_PRESCALER_DIV2;
-    compare = (48000000/2)/freq;
-  } else if (freq > 200) {
-    divider = 4;
-    prescaler = TC_CLOCK_PRESCALER_DIV4;
-    compare = (48000000/4)/freq;
-  } else if (freq > 100) {
-    divider = 8;
-    prescaler = TC_CLOCK_PRESCALER_DIV8;
-    compare = (48000000/8)/freq;
-  } else if (freq > 50) {
-    divider = 16;
-    prescaler = TC_CLOCK_PRESCALER_DIV16;
-    compare = (48000000/16)/freq;
-  } else if (freq > 12) {
-    divider = 64;
-    prescaler = TC_CLOCK_PRESCALER_DIV64;
-    compare = (48000000/64)/freq;
-  } else if (freq > 3) {
-    divider = 256;
-    prescaler = TC_CLOCK_PRESCALER_DIV256;
-    compare = (48000000/256)/freq;
-  } else if (freq >= 0.75) {
-    divider = 1024;
-    prescaler = TC_CLOCK_PRESCALER_DIV1024;
-    compare = (48000000/1024)/freq;
-  } 
-
-  zerotimer.enable(false);
-  zerotimer.configure(prescaler,       // prescaler
-          TC_COUNTER_SIZE_16BIT,       // bit width of timer/counter
-          TC_WAVE_GENERATION_MATCH_PWM // frequency or PWM mode
-          );
-
-  zerotimer.setCompare(0, compare);
-  zerotimer.setCallback(true, TC_CALLBACK_CC_CHANNEL0, TimerCallback0);
-  zerotimer.enable(true);
-#elif defined(ARDUINO_ARCH_RP2040)
   wspr_pwm_config = pwm_get_default_config();
   pwm_config_set_clkdiv_int(&wspr_pwm_config, 250); // 2uS
   pwm_config_set_wrap(&wspr_pwm_config, ((uint16_t)ms - 1));
@@ -1546,25 +1314,13 @@ void zeroTimerSetPeriodMs(float ms){
   pwm_clear_irq(WSPR_PWM_SLICE_NUM);
   pwm_set_irq_enabled(WSPR_PWM_SLICE_NUM, true);
   pwm_set_enabled(WSPR_PWM_SLICE_NUM, true);
-#endif
 }
 
 void encode()
 {
   Watchdog.reset();
-#if defined(ARDUINO_ARCH_SAMD)
-  analogWrite(A0, 0);
-  TcxoON;
-  delay(10);
-  Si5351ON;
-  delay(20);
-  si5351.init(SI5351_CRYSTAL_LOAD_8PF, 0, HF_CORRECTION);
-  si5351.drive_strength(SI5351_CLK0, SI5351_DRIVE_8MA); // Set for max power if desired
-  si5351.output_enable(SI5351_CLK0, 0);
-#elif defined(ARDUINO_ARCH_RP2040)
   vfo_set_drive_strength(WSPR_TX_CLK_NUM, SI5351A_CLK_IDRV_8MA);
   vfo_turn_on(WSPR_TX_CLK_NUM);
-#endif
   uint8_t i;
 
   #if defined(DEVMODE2)
@@ -1591,14 +1347,10 @@ void encode()
     tone_delay = JT4_DELAY;
     break;
   case MODE_WSPR:
-#if defined(ARDUINO_ARCH_SAMD)
-    hf_freq = WSPR_DEFAULT_FREQ;
-#elif defined(ARDUINO_ARCH_RP2040)
     hf_freq = WSPR_DEFAULT_FREQ - 100 + (rand() % 200);
     #if defined(DEVMODE2)
     printf("WSPR freq: %u\n", hf_freq);
     #endif
-#endif
     symbol_count = WSPR_SYMBOL_COUNT; // From the library defines
     tone_spacing = WSPR_TONE_SPACING;
     tone_delay = WSPR_DELAY;
@@ -1639,47 +1391,27 @@ void encode()
     while(tx_buffer[j++] != 0xff);
     symbol_count = j - 1;
   }
-
-#if defined(ARDUINO_ARCH_SAMD)
-  // Reset the tone to the base frequency and turn on the output
-  si5351.output_enable(SI5351_CLK0, 1);
-#endif
   
   zeroTimerSetPeriodMs(tone_delay); 
   
   for(i = 0; i < symbol_count; i++)
   {
-#if defined(ARDUINO_ARCH_SAMD)
-      si5351.set_freq((hf_freq * 100) + (tx_buffer[i] * tone_spacing), SI5351_CLK0);
-#elif defined(ARDUINO_ARCH_RP2040)
-      uint32_t freq_x16 = (hf_freq << PLL_CALCULATION_PRECISION) + (tx_buffer[i] * (12000L << PLL_CALCULATION_PRECISION) + 4096) / 8192L;
-      // printf("%s vfo_set_freq_x16(%u)\n", __func__, (freq_x16 >> PLL_CALCULATION_PRECISION));
-      vfo_set_freq_x16(WSPR_TX_CLK_NUM, freq_x16);
-#endif
+    uint32_t freq_x16 = (hf_freq << PLL_CALCULATION_PRECISION) + (tx_buffer[i] * (12000L << PLL_CALCULATION_PRECISION) + 4096) / 8192L;
+    // printf("%s vfo_set_freq_x16(%u)\n", __func__, (freq_x16 >> PLL_CALCULATION_PRECISION));
+    vfo_set_freq_x16(WSPR_TX_CLK_NUM, freq_x16);
       proceed = false;
-#if defined(ARDUINO_ARCH_SAMD)
-      while (!proceed);
-#elif defined(ARDUINO_ARCH_RP2040)
-      while (!proceed) {
+  while (!proceed) {
         updateStatusLED();
       }
-#endif
+
       Watchdog.reset();
   }
-#if defined(ARDUINO_ARCH_SAMD)
-  zerotimer.enable(false);
-  // Turn off the output
-  si5351.output_enable(SI5351_CLK0, 0);
-  Si5351OFF;
-  TcxoOFF;
-#elif defined(ARDUINO_ARCH_RP2040)
   pwm_set_enabled(WSPR_PWM_SLICE_NUM, false);
   pwm_set_irq_enabled(WSPR_PWM_SLICE_NUM, false);
   pwm_clear_irq(WSPR_PWM_SLICE_NUM);
   irq_set_enabled(PWM_IRQ_WRAP, false);
   irq_remove_handler(PWM_IRQ_WRAP, PWM4_Handler);
   vfo_turn_off();
-#endif
   Watchdog.reset();
 }
 
